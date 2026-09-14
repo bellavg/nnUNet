@@ -1,0 +1,71 @@
+#!/bin/bash
+#SBATCH --job-name=nnunet_train
+#SBATCH --time=48:00:00
+#SBATCH --nodes=1
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --constraint=scratch-node
+#SBATCH --output=logs/nnunet_train_%A_%a.out
+
+# Trains one fold of nnU-Net's 3d_fullres config on the SegTHOR dataset
+# preprocessed by preprocess.job. Submit as an array job to train all 5 CV
+# folds in parallel, one GPU each:
+#   sbatch --array=0-4 segthor/slurm/train.job
+# or a single fold:
+#   FOLD=0 sbatch segthor/slurm/train.job
+
+set -euo pipefail
+
+export TEMP="$TMPDIR"
+export TMP="$TMPDIR"
+
+module purge
+module load 2025
+module load Python/3.13.1-GCCcore-14.2.0
+
+VENV_PATH="${VENV_PATH:-/scratch-shared/$USER/.venv_nnunet}"
+source "$VENV_PATH/bin/activate"
+
+BASE_DIR="${BASE_DIR:-${SLURM_SUBMIT_DIR:-$HOME/nnUNet}}"
+if [ ! -f "$BASE_DIR/segthor/prepare_segthor_dataset.py" ]; then
+    echo "ERROR: BASE_DIR=$BASE_DIR does not look like an nnUNet checkout" \
+         "(missing segthor/prepare_segthor_dataset.py). sbatch this from the" \
+         "checkout root, or set BASE_DIR explicitly." >&2
+    exit 1
+fi
+cd "$BASE_DIR"
+
+DATASET_ID="${DATASET_ID:-101}"
+CONFIGURATION="${CONFIGURATION:-3d_fullres}"
+SCRATCH_ROOT="/scratch-shared/$USER/nnunet_segthor"
+
+export nnUNet_raw="$SCRATCH_ROOT/nnUNet_raw"
+export nnUNet_preprocessed="$SCRATCH_ROOT/nnUNet_preprocessed"
+export nnUNet_results="$SCRATCH_ROOT/nnUNet_results"
+export nnUNet_n_proc_DA="${nnUNet_n_proc_DA:-12}"
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
+# SLURM_ARRAY_TASK_ID is injected directly by the scheduler and reliably
+# reaches the job regardless of --export policy, unlike an exported FOLD
+# variable at the sbatch call site. Falls back to FOLD (default 0) for a
+# plain, non-array submission.
+if [ -n "${SLURM_ARRAY_TASK_ID:-}" ]; then
+    FOLD="$SLURM_ARRAY_TASK_ID"
+else
+    FOLD="${FOLD:-0}"
+fi
+
+if [ ! -d "$nnUNet_preprocessed/Dataset$(printf '%03d' "$DATASET_ID")"* ]; then
+    echo "ERROR: no preprocessed data found under $nnUNet_preprocessed for dataset $DATASET_ID." \
+         "Run segthor/slurm/preprocess.job first." >&2
+    exit 1
+fi
+
+echo "Using BASE_DIR=$BASE_DIR"
+echo "Using DATASET_ID=$DATASET_ID, CONFIGURATION=$CONFIGURATION, FOLD=$FOLD"
+echo "SLURM_ARRAY_TASK_ID=${SLURM_ARRAY_TASK_ID:-<not an array job>}"
+echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-<unset>}"
+
+srun nnUNetv2_train "$DATASET_ID" "$CONFIGURATION" "$FOLD"

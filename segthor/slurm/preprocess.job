@@ -1,0 +1,71 @@
+#!/bin/bash
+#SBATCH --job-name=nnunet_preprocess
+#SBATCH --time=02:00:00
+#SBATCH -N 1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+#SBATCH --partition=genoa
+#SBATCH --output=logs/nnunet_preprocess_%j.out
+
+# Converts data/segthor_part1 to nnU-Net raw format, then runs nnU-Net's own
+# fingerprint extraction + experiment planning + preprocessing
+# (nnUNetv2_plan_and_preprocess). CPU-only -- no GPU needed for this step.
+#
+# Usage (from this nnUNet checkout root, after rebuild_venv.job has run, and
+# data/segthor_part1 has been placed under this checkout -- see segthor/README.md):
+#   sbatch segthor/slurm/preprocess.job
+# Override the dataset id/venv/scratch root:
+#   DATASET_ID=102 VENV_PATH=/my/venv sbatch segthor/slurm/preprocess.job
+
+set -euo pipefail
+
+module purge
+module load 2025
+module load Python/3.13.1-GCCcore-14.2.0
+
+VENV_PATH="${VENV_PATH:-/scratch-shared/$USER/.venv_nnunet}"
+source "$VENV_PATH/bin/activate"
+
+BASE_DIR="${BASE_DIR:-${SLURM_SUBMIT_DIR:-$HOME/nnUNet}}"
+if [ ! -f "$BASE_DIR/segthor/prepare_segthor_dataset.py" ]; then
+    echo "ERROR: BASE_DIR=$BASE_DIR does not look like an nnUNet checkout" \
+         "(missing segthor/prepare_segthor_dataset.py). sbatch this from the" \
+         "checkout root, or set BASE_DIR explicitly." >&2
+    exit 1
+fi
+if [ ! -d "$BASE_DIR/data/segthor_part1/train" ]; then
+    echo "ERROR: $BASE_DIR/data/segthor_part1/train not found. Place the SegTHOR" \
+         "data there first (see segthor/README.md)." >&2
+    exit 1
+fi
+cd "$BASE_DIR"
+
+DATASET_ID="${DATASET_ID:-101}"
+DATASET_NAME="${DATASET_NAME:-SegTHOR}"
+LABEL_ORDER="${LABEL_ORDER:-verified}"  # see segthor/prepare_segthor_dataset.py's docstring
+SCRATCH_ROOT="/scratch-shared/$USER/nnunet_segthor"
+
+export nnUNet_raw="$SCRATCH_ROOT/nnUNet_raw"
+export nnUNet_preprocessed="$SCRATCH_ROOT/nnUNet_preprocessed"
+export nnUNet_results="$SCRATCH_ROOT/nnUNet_results"
+mkdir -p "$nnUNet_raw" "$nnUNet_preprocessed" "$nnUNet_results"
+
+echo "Using BASE_DIR=$BASE_DIR"
+echo "Using DATASET_ID=$DATASET_ID, DATASET_NAME=$DATASET_NAME, LABEL_ORDER=$LABEL_ORDER"
+echo "nnUNet_raw=$nnUNet_raw"
+echo "nnUNet_preprocessed=$nnUNet_preprocessed"
+echo "nnUNet_results=$nnUNet_results"
+
+echo "Converting data/segthor_part1 -> nnU-Net raw format..."
+python segthor/prepare_segthor_dataset.py \
+    --data-dir data/segthor_part1/train \
+    --nnunet-raw "$nnUNet_raw" \
+    --dataset-id "$DATASET_ID" \
+    --dataset-name "$DATASET_NAME" \
+    --label-order "$LABEL_ORDER" \
+    --link
+
+echo "Running nnUNetv2_plan_and_preprocess (verifies dataset integrity itself)..."
+nnUNetv2_plan_and_preprocess -d "$DATASET_ID" --verify_dataset_integrity -np 16
+
+echo "Done. Plans + preprocessed data are under $nnUNet_preprocessed/Dataset$(printf '%03d' "$DATASET_ID")_${DATASET_NAME}/"

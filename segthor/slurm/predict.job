@@ -1,0 +1,43 @@
+#!/bin/bash
+#SBATCH --job-name=nnunet_predict
+#SBATCH --time=02:00:00
+#SBATCH --nodes=1
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --constraint=scratch-node
+#SBATCH --output=logs/nnunet_predict_%j.out
+
+# Runs inference with a trained fold (or an ensemble, once >1 fold has been
+# trained) over a folder of nnU-Net-formatted images.
+#
+# Usage:
+#   INPUT_DIR=/path/to/imagesTs OUTPUT_DIR=/path/to/predictions \
+#       sbatch segthor/slurm/predict.job
+
+set -euo pipefail
+
+module purge
+module load 2025
+module load Python/3.13.1-GCCcore-14.2.0
+
+VENV_PATH="${VENV_PATH:-/scratch-shared/$USER/.venv_nnunet}"
+source "$VENV_PATH/bin/activate"
+
+DATASET_ID="${DATASET_ID:-101}"
+CONFIGURATION="${CONFIGURATION:-3d_fullres}"
+FOLDS="${FOLDS:-0}"  # space-separated, e.g. FOLDS="0 1 2 3 4" for the full ensemble
+SCRATCH_ROOT="/scratch-shared/$USER/nnunet_segthor"
+
+export nnUNet_raw="$SCRATCH_ROOT/nnUNet_raw"
+export nnUNet_preprocessed="$SCRATCH_ROOT/nnUNet_preprocessed"
+export nnUNet_results="$SCRATCH_ROOT/nnUNet_results"
+
+: "${INPUT_DIR:?Set INPUT_DIR to a folder of *_0000.nii.gz images}"
+: "${OUTPUT_DIR:?Set OUTPUT_DIR for the predicted segmentations}"
+mkdir -p "$OUTPUT_DIR"
+
+echo "Using DATASET_ID=$DATASET_ID, CONFIGURATION=$CONFIGURATION, FOLDS=$FOLDS"
+echo "INPUT_DIR=$INPUT_DIR -> OUTPUT_DIR=$OUTPUT_DIR"
+
+srun nnUNetv2_predict -d "$DATASET_ID" -c "$CONFIGURATION" -f $FOLDS \
+    -i "$INPUT_DIR" -o "$OUTPUT_DIR"

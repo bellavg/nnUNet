@@ -1,0 +1,68 @@
+#!/bin/bash
+#SBATCH --job-name=nnunet_venv
+#SBATCH --time=00:45:00
+#SBATCH -N 1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=24
+#SBATCH --partition=genoa
+#SBATCH --output=logs/rebuild_venv_%j.out
+
+# Build the scratch-shared venv nnU-Net trains from, from this checkout's own
+# pyproject.toml/setup.py. Run this once (and again after a Snellius module
+# update breaks it).
+#
+# Usage (from this nnUNet checkout root):
+#   mkdir -p logs && sbatch segthor/slurm/rebuild_venv.job
+# Override the venv path:
+#   VENV_PATH=/my/path sbatch segthor/slurm/rebuild_venv.job
+
+set -euo pipefail
+
+VENV_PATH="${VENV_PATH:-/scratch-shared/$USER/.venv_nnunet}"
+BASE_DIR="${BASE_DIR:-${SLURM_SUBMIT_DIR:-$HOME/nnUNet}}"
+
+if [ ! -f "$BASE_DIR/pyproject.toml" ] && [ ! -f "$BASE_DIR/setup.py" ]; then
+    echo "ERROR: BASE_DIR=$BASE_DIR does not look like an nnUNet checkout" \
+         "(no pyproject.toml/setup.py). sbatch this from the checkout root," \
+         "or set BASE_DIR explicitly." >&2
+    exit 1
+fi
+
+echo "Rebuilding venv at: $VENV_PATH"
+echo "From nnUNet checkout at: $BASE_DIR"
+
+# Torch/nnU-Net installs are tens of thousands of small files -- skip pip's
+# cache so it doesn't chew through the scratch-shared inode quota.
+export PIP_NO_CACHE_DIR=1
+
+module purge
+module load 2025
+module load Python/3.13.1-GCCcore-14.2.0
+
+if [[ -d "$VENV_PATH" ]]; then
+    echo "Removing existing venv..."
+    rm -rf "$VENV_PATH"
+fi
+if [[ -e "$VENV_PATH" ]]; then
+    echo "ERROR: $VENV_PATH still exists after rm -rf." >&2
+    lsof +D "$VENV_PATH" 2>/dev/null
+    exit 1
+fi
+
+python -m venv "$VENV_PATH"
+source "$VENV_PATH/bin/activate"
+pip install --upgrade pip setuptools wheel
+
+# nnU-Net installs torch itself as a normal dependency -- this pulls in a
+# CUDA build matched to the current PyPI torch release, which Snellius H100
+# nodes can run.
+echo "Installing nnUNet (editable) + its dependencies..."
+pip install -e "$BASE_DIR"
+
+echo "Verifying imports..."
+python -c "
+import torch, nnunetv2
+print(f'torch={torch.__version__}, cuda available={torch.cuda.is_available()}')
+print(f'nnunetv2 importable from {nnunetv2.__file__}')
+print('Rebuild successful.')
+"
