@@ -15,6 +15,13 @@
 
 set -euo pipefail
 
+# pip's build-isolation step uses $TMPDIR for its temp build envs. On Snellius
+# login nodes this can default to a small per-node scratch pool with its own
+# separate (and easily exhausted) quota, unrelated to $HOME or scratch-shared
+# -- redirect it to $HOME, which has room for the ~100s of MB a build env needs.
+export TMPDIR="${TMPDIR_OVERRIDE:-$HOME/.tmp_pip_build}"
+mkdir -p "$TMPDIR"
+
 VENV_PATH="${VENV_PATH:-$HOME/.venv_nnunet}"
 BASE_DIR="${BASE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
