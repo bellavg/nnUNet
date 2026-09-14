@@ -76,8 +76,8 @@ prediction, using folds trained so far.
 
 | Variable | Set by | Points to |
 |---|---|---|
-| `nnUNet_raw` | preprocess/train/predict jobs | `/scratch-shared/$USER/nnunet_segthor/nnUNet_raw` |
+| `nnUNet_raw` | preprocess/train/predict jobs | `$HOME/nnunet_segthor/nnUNet_raw` |
 | `nnUNet_preprocessed` | preprocess/train/predict jobs | `.../nnUNet_preprocessed` |
 | `nnUNet_results` | preprocess/train/predict jobs | `.../nnUNet_results` |
-| `VENV_PATH` | you, at `sbatch` time | default `/scratch-shared/$USER/.venv_nnunet` |
+| `VENV_PATH` | you, at `sbatch` time | default `$HOME/.venv_nnunet` |
 | `BASE_DIR` | you, at `sbatch` time (or `SLURM_SUBMIT_DIR`) | this checkout, default `$HOME/nnUNet` |

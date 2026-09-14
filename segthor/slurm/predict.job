@@ -20,17 +20,17 @@ module purge
 module load 2025
 module load Python/3.13.1-GCCcore-14.2.0
 
-VENV_PATH="${VENV_PATH:-/scratch-shared/$USER/.venv_nnunet}"
+VENV_PATH="${VENV_PATH:-$HOME/.venv_nnunet}"
 source "$VENV_PATH/bin/activate"
 
 DATASET_ID="${DATASET_ID:-101}"
 CONFIGURATION="${CONFIGURATION:-3d_fullres}"
 FOLDS="${FOLDS:-0}"  # space-separated, e.g. FOLDS="0 1 2 3 4" for the full ensemble
-SCRATCH_ROOT="/scratch-shared/$USER/nnunet_segthor"
+RESULTS_ROOT="$HOME/nnunet_segthor"
 
-export nnUNet_raw="$SCRATCH_ROOT/nnUNet_raw"
-export nnUNet_preprocessed="$SCRATCH_ROOT/nnUNet_preprocessed"
-export nnUNet_results="$SCRATCH_ROOT/nnUNet_results"
+export nnUNet_raw="$RESULTS_ROOT/nnUNet_raw"
+export nnUNet_preprocessed="$RESULTS_ROOT/nnUNet_preprocessed"
+export nnUNet_results="$RESULTS_ROOT/nnUNet_results"
 
 : "${INPUT_DIR:?Set INPUT_DIR to a folder of *_0000.nii.gz images}"
 : "${OUTPUT_DIR:?Set OUTPUT_DIR for the predicted segmentations}"

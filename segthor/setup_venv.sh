@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-VENV_PATH="${VENV_PATH:-/scratch-shared/$USER/.venv_nnunet}"
+VENV_PATH="${VENV_PATH:-$HOME/.venv_nnunet}"
 BASE_DIR="${BASE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 if [ ! -f "$BASE_DIR/pyproject.toml" ] && [ ! -f "$BASE_DIR/setup.py" ]; then

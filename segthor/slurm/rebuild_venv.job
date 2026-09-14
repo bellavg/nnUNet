@@ -7,7 +7,7 @@
 #SBATCH --partition=genoa
 #SBATCH --output=logs/rebuild_venv_%j.out
 
-# Build the scratch-shared venv nnU-Net trains from, from this checkout's own
+# Build the venv nnU-Net trains from (in $HOME -- scratch stays untouched), from this checkout's own
 # pyproject.toml/setup.py. Run this once (and again after a Snellius module
 # update breaks it).
 #
@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-VENV_PATH="${VENV_PATH:-/scratch-shared/$USER/.venv_nnunet}"
+VENV_PATH="${VENV_PATH:-$HOME/.venv_nnunet}"
 BASE_DIR="${BASE_DIR:-${SLURM_SUBMIT_DIR:-$HOME/nnUNet}}"
 
 if [ ! -f "$BASE_DIR/pyproject.toml" ] && [ ! -f "$BASE_DIR/setup.py" ]; then
@@ -32,7 +32,7 @@ echo "Rebuilding venv at: $VENV_PATH"
 echo "From nnUNet checkout at: $BASE_DIR"
 
 # Torch/nnU-Net installs are tens of thousands of small files -- skip pip's
-# cache so it doesn't chew through the scratch-shared inode quota.
+# cache so it doesn't chew through the home-directory inode quota.
 export PIP_NO_CACHE_DIR=1
 
 module purge

@@ -23,7 +23,7 @@ module purge
 module load 2025
 module load Python/3.13.1-GCCcore-14.2.0
 
-VENV_PATH="${VENV_PATH:-/scratch-shared/$USER/.venv_nnunet}"
+VENV_PATH="${VENV_PATH:-$HOME/.venv_nnunet}"
 source "$VENV_PATH/bin/activate"
 
 BASE_DIR="${BASE_DIR:-${SLURM_SUBMIT_DIR:-$HOME/nnUNet}}"
@@ -37,11 +37,11 @@ cd "$BASE_DIR"
 
 DATASET_ID="${DATASET_ID:-101}"
 CONFIGURATION="${CONFIGURATION:-3d_fullres}"
-SCRATCH_ROOT="/scratch-shared/$USER/nnunet_segthor"
+RESULTS_ROOT="$HOME/nnunet_segthor"
 
-export nnUNet_raw="$SCRATCH_ROOT/nnUNet_raw"
-export nnUNet_preprocessed="$SCRATCH_ROOT/nnUNet_preprocessed"
-export nnUNet_results="$SCRATCH_ROOT/nnUNet_results"
+export nnUNet_raw="$RESULTS_ROOT/nnUNet_raw"
+export nnUNet_preprocessed="$RESULTS_ROOT/nnUNet_preprocessed"
+export nnUNet_results="$RESULTS_ROOT/nnUNet_results"
 export nnUNet_n_proc_DA="${nnUNet_n_proc_DA:-12}"
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 export OMP_NUM_THREADS=1
